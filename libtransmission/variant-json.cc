@@ -324,9 +324,9 @@ static void action_callback_POP(
     {
         if ((state->special_flags & JSONSL_SPECIALf_NUMNOINT) != 0)
         {
-            char const* begin = jsn->base + state->pos_begin;
-            data->has_content = true;
-            tr_variantInitReal(get_node(jsn), strtod(begin, nullptr));
+            auto sv = std::string_view{ jsn->base + state->pos_begin, jsn->pos - state->pos_begin };
+            auto const val = tr_parseNum<double>(sv);
+            tr_variantInitReal(get_node(jsn), val ? *val : double{});
         }
         else if ((state->special_flags & JSONSL_SPECIALf_NUMERIC) != 0)
         {
@@ -543,7 +543,7 @@ static void jsonStringFunc(tr_variant const* val, void* vdata)
     auto sv = std::string_view{};
     (void)!tr_variantGetStrView(val, &sv);
 
-    evbuffer_reserve_space(data->out, std::size(sv) * 4, vec, 1);
+    evbuffer_reserve_space(data->out, std::size(sv) * 6 + 2, vec, 1);
     auto* out = static_cast<char*>(vec[0].iov_base);
     char const* const outend = out + vec[0].iov_len;
 

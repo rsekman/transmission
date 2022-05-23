@@ -15,7 +15,6 @@
 #include "cache.h" /* tr_cacheReadBlock() */
 #include "crypto-utils.h"
 #include "error.h"
-#include "fdlimit.h"
 #include "file.h"
 #include "inout.h"
 #include "log.h"
@@ -101,9 +100,8 @@ int readOrWriteBytes(
     ****  Find the fd
     ***/
 
-    auto fd = tr_fdFileGetCached(session, tr_torrentId(tor), file_index, do_write);
-
-    if (fd == TR_BAD_SYS_FILE) // it's not cached, so open/create it now
+    auto fd = session->openFiles().get(tor->uniqueId, file_index, do_write);
+    if (!fd) // it's not cached, so open/create it now
     {
         auto found = tor->findFile(file_index); // see if the file exists...
         if (!found)
@@ -126,8 +124,8 @@ int readOrWriteBytes(
             auto const prealloc = (!do_write || !tor->fileIsWanted(file_index)) ? TR_PREALLOCATE_NONE :
                                                                                   tor->session->preallocationMode;
 
-            fd = tr_fdFileCheckout(session, tor->uniqueId, file_index, found->filename(), do_write, prealloc, file_size);
-            if (fd == TR_BAD_SYS_FILE)
+            fd = session->openFiles().get(tor->uniqueId, file_index, do_write, found->filename(), prealloc, file_size);
+            if (!fd)
             {
                 err = errno;
                 tr_logAddErrorTor(
@@ -160,7 +158,7 @@ int readOrWriteBytes(
     switch (io_mode)
     {
     case IoMode::Read:
-        if (!readEntireBuf(fd, file_offset, buf, buflen, &error))
+        if (!readEntireBuf(*fd, file_offset, buf, buflen, &error) && error != nullptr)
         {
             err = error->code;
             tr_logAddErrorTor(
@@ -175,7 +173,7 @@ int readOrWriteBytes(
         break;
 
     case IoMode::Write:
-        if (!writeEntireBuf(fd, file_offset, buf, buflen, &error))
+        if (!writeEntireBuf(*fd, file_offset, buf, buflen, &error) && error != nullptr)
         {
             err = error->code;
             tr_logAddErrorTor(
@@ -190,7 +188,7 @@ int readOrWriteBytes(
         break;
 
     case IoMode::Prefetch:
-        tr_sys_file_advise(fd, file_offset, buflen, TR_SYS_FILE_ADVICE_WILL_NEED);
+        tr_sys_file_advise(*fd, file_offset, buflen, TR_SYS_FILE_ADVICE_WILL_NEED);
         break;
     }
 
@@ -219,7 +217,7 @@ int readOrWritePiece(tr_torrent* tor, IoMode io_mode, tr_block_info::Location lo
 
         if (err != 0 && io_mode == IoMode::Write && tor->error != TR_STAT_LOCAL_ERROR)
         {
-            auto const path = tr_strvPath(tor->downloadDir().sv(), tor->fileSubpath(file_index));
+            auto const path = tr_pathbuf{ tor->downloadDir(), '/', tor->fileSubpath(file_index) };
             tor->setLocalError(fmt::format(FMT_STRING("{:s} ({:s})"), tr_strerror(err), path));
         }
 

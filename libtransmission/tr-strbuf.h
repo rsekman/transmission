@@ -5,9 +5,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include <string_view>
 
 #include <fmt/format.h>
+
+std::string_view tr_sys_path_dirname(std::string_view path);
 
 /**
  * A memory buffer which uses a builtin array of N bytes, using heap
@@ -261,6 +264,26 @@ public:
     [[nodiscard]] constexpr operator auto() const noexcept
     {
         return c_str();
+    }
+
+    bool popdir() noexcept
+    {
+        auto const parent = tr_sys_path_dirname(sv());
+        auto const changed = parent != sv();
+
+        if (changed)
+        {
+            if (std::data(parent) == std::data(*this))
+            {
+                resize(std::size(parent));
+            }
+            else
+            {
+                assign(parent);
+            }
+        }
+
+        return changed;
     }
 
 private:

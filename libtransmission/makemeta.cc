@@ -51,11 +51,11 @@ static struct FileList* getFiles(std::string_view dir, std::string_view base, st
         return nullptr;
     }
 
-    auto buf = tr_strvPath(dir, base);
+    auto buf = tr_pathbuf{ dir, '/', base };
     tr_sys_path_native_separators(std::data(buf));
 
     tr_sys_path_info info;
-    if (tr_error* error = nullptr; !tr_sys_path_get_info(buf.c_str(), 0, &info, &error))
+    if (tr_error* error = nullptr; !tr_sys_path_get_info(buf, 0, &info, &error))
     {
         tr_logAddWarn(fmt::format(
             _("Skipping '{path}': {error} ({error_code})"),

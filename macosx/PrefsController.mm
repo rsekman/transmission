@@ -18,6 +18,7 @@
 #import "PortChecker.h"
 #import "BonjourController.h"
 #import "NSApplicationAdditions.h"
+#import "NSImageAdditions.h"
 #import "NSStringAdditions.h"
 
 #define DOWNLOAD_FOLDER 0
@@ -96,7 +97,7 @@
 @property(nonatomic) IBOutlet NSTextField* fRPCPortField;
 @property(nonatomic) IBOutlet NSTextField* fRPCPasswordField;
 @property(nonatomic) IBOutlet NSTableView* fRPCWhitelistTable;
-@property(nonatomic, readonly) NSMutableArray* fRPCWhitelistArray;
+@property(nonatomic, readonly) NSMutableArray<NSString*>* fRPCWhitelistArray;
 @property(nonatomic) IBOutlet NSSegmentedControl* fRPCAddRemoveControl;
 @property(nonatomic, copy) NSString* fRPCPassword;
 
@@ -156,9 +157,6 @@
                                                      notifyingAbout:VDKQueueNotifyAboutWrite];
         }
 
-        //set special-handling of magnet link add window checkbox
-        [self updateShowAddMagnetWindowField];
-
         //set blocklist scheduler
         [BlocklistScheduler.scheduler updateSchedule];
 
@@ -215,6 +213,9 @@
     self.window.toolbar = toolbar;
 
     [self setPrefView:nil];
+
+    //set special-handling of magnet link add window checkbox
+    [self updateShowAddMagnetWindowField];
 
     //set download folder
     [self.fFolderPopUp selectItemAtIndex:[self.fDefaults boolForKey:@"DownloadLocationConstant"] ? DOWNLOAD_FOLDER : DOWNLOAD_TORRENT];
@@ -296,14 +297,7 @@
     if ([ident isEqualToString:TOOLBAR_GENERAL])
     {
         item.label = NSLocalizedString(@"General", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"gearshape" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:NSImageNamePreferencesGeneral];
-        }
+        item.image = [NSImage systemSymbol:@"gearshape" withFallback:NSImageNamePreferencesGeneral];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -311,14 +305,7 @@
     else if ([ident isEqualToString:TOOLBAR_TRANSFERS])
     {
         item.label = NSLocalizedString(@"Transfers", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"arrow.up.arrow.down" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:@"Transfers"];
-        }
+        item.image = [NSImage systemSymbol:@"arrow.up.arrow.down" withFallback:@"Transfers"];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -326,14 +313,7 @@
     else if ([ident isEqualToString:TOOLBAR_GROUPS])
     {
         item.label = NSLocalizedString(@"Groups", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"pin" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:@"Groups"];
-        }
+        item.image = [NSImage systemSymbol:@"pin" withFallback:@"Groups"];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -341,14 +321,7 @@
     else if ([ident isEqualToString:TOOLBAR_BANDWIDTH])
     {
         item.label = NSLocalizedString(@"Bandwidth", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"speedometer" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:@"Bandwidth"];
-        }
+        item.image = [NSImage systemSymbol:@"speedometer" withFallback:@"Bandwidth"];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -356,14 +329,7 @@
     else if ([ident isEqualToString:TOOLBAR_PEERS])
     {
         item.label = NSLocalizedString(@"Peers", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"person.2" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:NSImageNameUserGroup];
-        }
+        item.image = [NSImage systemSymbol:@"person.2" withFallback:NSImageNameUserGroup];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -371,14 +337,7 @@
     else if ([ident isEqualToString:TOOLBAR_NETWORK])
     {
         item.label = NSLocalizedString(@"Network", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"network" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:NSImageNameNetwork];
-        }
+        item.image = [NSImage systemSymbol:@"network" withFallback:NSImageNameNetwork];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -386,14 +345,7 @@
     else if ([ident isEqualToString:TOOLBAR_REMOTE])
     {
         item.label = NSLocalizedString(@"Remote", "Preferences -> toolbar item title");
-        if (@available(macOS 11.0, *))
-        {
-            item.image = [NSImage imageWithSystemSymbolName:@"antenna.radiowaves.left.and.right" accessibilityDescription:nil];
-        }
-        else
-        {
-            item.image = [NSImage imageNamed:@"Remote"];
-        }
+        item.image = [NSImage systemSymbol:@"antenna.radiowaves.left.and.right" withFallback:@"Remote"];
         item.target = self;
         item.action = @selector(setPrefView:);
         item.autovalidates = NO;
@@ -523,6 +475,8 @@
         self.fPortStatusField.stringValue = NSLocalizedString(@"Port check site is down", "Preferences -> Network -> port status");
         self.fPortStatusImage.image = [NSImage imageNamed:NSImageNameStatusPartiallyAvailable];
         break;
+    case PORT_STATUS_CHECKING:
+        break;
     default:
         NSAssert1(NO, @"Port checker returned invalid status: %d", self.fPortChecker.status);
         break;
@@ -530,7 +484,7 @@
     self.fPortChecker = nil;
 }
 
-- (NSArray*)sounds
+- (NSArray<NSString*>*)sounds
 {
     NSMutableArray* sounds = [NSMutableArray array];
 
@@ -635,9 +589,9 @@
 
     if (exists)
     {
-        NSString* countString = [NSString formattedUInteger:tr_blocklistGetRuleCount(self.fHandle)];
         self.fBlocklistMessageField.stringValue = [NSString
-            stringWithFormat:NSLocalizedString(@"%@ IP address rules in list", "Prefs -> blocklist -> message"), countString];
+            stringWithFormat:NSLocalizedString(@"%lu IP address rules in list", "Prefs -> blocklist -> message"),
+                             tr_blocklistGetRuleCount(self.fHandle)];
     }
     else
     {
@@ -891,7 +845,7 @@
 
 - (void)setQueueNumber:(id)sender
 {
-    NSInteger const number = [sender intValue];
+    int const number = [sender intValue];
     BOOL const seed = sender == self.fQueueSeedField;
 
     [self.fDefaults setInteger:number forKey:seed ? @"QueueSeedNumber" : @"QueueDownloadNumber"];
@@ -909,7 +863,7 @@
 
 - (void)setStalledMinutes:(id)sender
 {
-    NSInteger const min = [sender intValue];
+    int const min = [sender intValue];
     [self.fDefaults setInteger:min forKey:@"StalledMinutes"];
     tr_sessionSetQueueStalledMinutes(self.fHandle, min);
 
@@ -1231,7 +1185,7 @@
         [self.fRPCWhitelistArray addObject:@""];
         [self.fRPCWhitelistTable reloadData];
 
-        int const row = self.fRPCWhitelistArray.count - 1;
+        NSUInteger const row = self.fRPCWhitelistArray.count - 1;
         [self.fRPCWhitelistTable selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
         [self.fRPCWhitelistTable editColumn:0 row:row withEvent:nil select:YES];
     }

@@ -14,14 +14,12 @@
 #include <array>
 #include <cstddef> // size_t
 #include <cstdint> // uintX_t
-#include <ctime>
-#include <list>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility> // std::pair
 #include <vector>
 
 #include "transmission.h"
@@ -30,6 +28,7 @@
 #include "bandwidth.h"
 #include "interned-string.h"
 #include "net.h" // tr_socket_t
+#include "open-files.h"
 #include "quark.h"
 #include "torrents.h"
 #include "web.h"
@@ -54,7 +53,7 @@ struct tr_address;
 struct tr_announcer;
 struct tr_announcer_udp;
 struct tr_bindsockets;
-struct tr_blocklistFile;
+struct BlocklistFile;
 struct tr_cache;
 struct tr_fdInfo;
 
@@ -224,8 +223,6 @@ public:
 
     void setRpcWhitelist(std::string_view whitelist) const;
 
-    std::string const& rpcWhitelist() const;
-
     void useRpcWhitelist(bool enabled) const;
 
     [[nodiscard]] bool useRpcWhitelist() const;
@@ -257,9 +254,38 @@ public:
         tr_netSetTOS(sock, peer_socket_tos_, type);
     }
 
+    [[nodiscard]] constexpr bool incPeerCount() noexcept
+    {
+        if (this->peerCount >= this->peerLimit)
+        {
+            return false;
+        }
+
+        ++this->peerCount;
+        return true;
+    }
+
+    constexpr void decPeerCount() noexcept
+    {
+        if (this->peerCount > 0)
+        {
+            --this->peerCount;
+        }
+    }
+
     // bandwidth
 
     [[nodiscard]] Bandwidth& getBandwidthGroup(std::string_view name);
+
+    //
+
+    [[nodiscard]] constexpr auto& openFiles() noexcept
+    {
+        return open_files_;
+    }
+
+    void closeTorrentFiles(tr_torrent* tor) noexcept;
+    void closeTorrentFile(tr_torrent* tor, tr_file_index_t file_num) noexcept;
 
 public:
     static constexpr std::array<std::tuple<tr_quark, tr_quark, TrScript>, 3> Scripts{
@@ -299,8 +325,6 @@ public:
 
     struct tr_turtle_info turtle;
 
-    struct tr_fdInfo* fdInfo;
-
     int magicNumber;
 
     tr_encryption_mode encryptionMode;
@@ -311,8 +335,9 @@ public:
     struct evdns_base* evdns_base;
     struct tr_event_handle* events;
 
-    uint16_t peerLimit;
-    uint16_t peerLimitPerTorrent;
+    uint16_t peerCount = 0;
+    uint16_t peerLimit = 200;
+    uint16_t peerLimitPerTorrent = 50;
 
     int uploadSlotsPerTorrent;
 
@@ -354,7 +379,7 @@ public:
     std::string resume_dir;
     std::string torrent_dir;
 
-    std::list<tr_blocklistFile*> blocklists;
+    std::vector<std::unique_ptr<BlocklistFile>> blocklists;
     struct tr_peerMgr* peerMgr;
     struct tr_shared* shared;
 
@@ -400,7 +425,7 @@ public:
     // monitors the "global pool" speeds
     Bandwidth top_bandwidth_;
 
-    std::map<tr_interned_string, std::unique_ptr<Bandwidth>> bandwidth_groups_;
+    std::vector<std::pair<tr_interned_string, std::unique_ptr<Bandwidth>>> bandwidth_groups_;
 
     float desiredRatio;
 
@@ -434,6 +459,8 @@ private:
     std::array<bool, TR_SCRIPT_N_TYPES> scripts_enabled_;
     bool blocklist_enabled_ = false;
     bool incomplete_dir_enabled_ = false;
+
+    tr_open_files open_files_;
 };
 
 bool tr_sessionAllowsDHT(tr_session const* session);

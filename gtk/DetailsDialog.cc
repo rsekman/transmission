@@ -117,6 +117,7 @@ private:
     sigc::connection idle_spin_tag_;
     sigc::connection max_peers_spin_tag_;
 
+    Gtk::Label* added_lb_ = nullptr;
     Gtk::Label* size_lb_ = nullptr;
     Gtk::Label* state_lb_ = nullptr;
     Gtk::Label* have_lb_ = nullptr;
@@ -599,16 +600,14 @@ void gtr_text_buffer_set_text(Glib::RefPtr<Gtk::TextBuffer> const& b, Glib::ustr
     }
 }
 
-std::string get_date_string(time_t t)
+[[nodiscard]] std::string get_date_string(time_t t)
 {
-    if (t == 0)
-    {
-        return _("N/A");
-    }
+    return t == 0 ? _("N/A") : fmt::format(FMT_STRING("{:%x}"), fmt::localtime(t));
+}
 
-    struct tm tm;
-    tr_localtime_r(&t, &tm);
-    return fmt::format(FMT_STRING("{:%x}"), tm);
+[[nodiscard]] std::string get_date_time_string(time_t t)
+{
+    return t == 0 ? _("N/A") : fmt::format(FMT_STRING("{:%c}"), fmt::localtime(t));
 }
 
 } // namespace
@@ -655,6 +654,31 @@ void DetailsDialog::Impl::refreshInfo(std::vector<tr_torrent*> const& torrents)
     }
 
     privacy_lb_->set_text(str);
+
+    /* added_lb */
+    if (stats.empty())
+    {
+        str = no_torrent;
+    }
+    else
+    {
+        auto const baseline = stats.front()->addedDate;
+        bool const is_uniform = std::all_of(
+            stats.begin(),
+            stats.end(),
+            [baseline](auto const* stat) { return stat->addedDate == baseline; });
+
+        if (is_uniform)
+        {
+            str = get_date_time_string(baseline);
+        }
+        else
+        {
+            str = mixed;
+        }
+    }
+
+    added_lb_->set_text(str);
 
     /* origin_lb */
     if (infos.empty())
@@ -1143,6 +1167,11 @@ Gtk::Widget* DetailsDialog::Impl::info_page_new()
     origin_lb_->set_selectable(true);
     origin_lb_->set_ellipsize(Pango::ELLIPSIZE_END);
     t->add_row(row, _("Origin:"), *origin_lb_);
+
+    /* added */
+    added_lb_ = Gtk::make_managed<Gtk::Label>();
+    added_lb_->set_single_line_mode(true);
+    t->add_row(row, _("Added:"), *added_lb_);
 
     /* comment */
     comment_buffer_ = Gtk::TextBuffer::create();

@@ -53,7 +53,6 @@ static void depthFirstWalk(char const* path, file_func_t func)
             {
                 if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0)
                 {
-                    auto const filename = tr_strvPath(path, name);
                     depthFirstWalk(tr_strvPath(path, name).c_str(), func);
                 }
             }
@@ -183,9 +182,10 @@ protected:
     {
         auto const tmperr = errno;
 
-        auto const dir = tr_sys_path_dirname(path);
+        auto dir = tr_pathbuf{ path };
+        dir.popdir();
         tr_error* error = nullptr;
-        tr_sys_dir_create(dir.data(), TR_SYS_DIR_CREATE_PARENTS, 0700, &error);
+        tr_sys_dir_create(dir, TR_SYS_DIR_CREATE_PARENTS, 0700, &error);
         EXPECT_EQ(nullptr, error) << "path[" << path << "] dir[" << dir << "] " << *error;
 
         errno = tmperr;
@@ -245,7 +245,12 @@ protected:
         errno = tmperr;
     }
 
-    void createFileWithContents(std::string const& path, void const* payload) const
+    void createFileWithContents(std::string_view path, std::string_view payload) const
+    {
+        createFileWithContents(path, std::data(payload), std::size(payload));
+    }
+
+    void createFileWithContents(std::string_view path, void const* payload) const
     {
         createFileWithContents(path, payload, strlen(static_cast<char const*>(payload)));
     }
@@ -309,7 +314,7 @@ private:
         auto q = TR_KEY_download_dir;
         auto const download_dir = tr_variantDictFindStrView(settings, q, &sv) ? tr_strvPath(sandboxDir(), sv) :
                                                                                 tr_strvPath(sandboxDir(), "Downloads");
-        tr_sys_dir_create(download_dir.data(), TR_SYS_DIR_CREATE_PARENTS, 0700);
+        tr_sys_dir_create(download_dir, TR_SYS_DIR_CREATE_PARENTS, 0700);
         tr_variantDictAddStr(settings, q, download_dir.data());
 
         // incomplete dir
@@ -319,8 +324,7 @@ private:
         tr_variantDictAddStr(settings, q, incomplete_dir.c_str());
 
         // blocklists
-        auto const blocklist_dir = tr_strvPath(sandboxDir(), "blocklists");
-        tr_sys_dir_create(blocklist_dir.data(), TR_SYS_DIR_CREATE_PARENTS, 0700);
+        tr_sys_dir_create(tr_pathbuf{ sandboxDir(), "/blocklists" }, TR_SYS_DIR_CREATE_PARENTS, 0700);
 
         // fill in any missing settings
 
@@ -407,8 +411,9 @@ protected:
                 auto const suffix = std::string_view{ partial ? ".part" : "" };
                 auto const filename = tr_pathbuf{ base, '/', subpath, suffix };
 
-                auto const dirname = tr_sys_path_dirname(filename);
-                tr_sys_dir_create(dirname.c_str(), TR_SYS_DIR_CREATE_PARENTS, 0700);
+                auto dirname = tr_pathbuf{ filename.sv() };
+                dirname.popdir();
+                tr_sys_dir_create(dirname, TR_SYS_DIR_CREATE_PARENTS, 0700);
 
                 auto fd = tr_sys_file_open(filename, TR_SYS_FILE_WRITE | TR_SYS_FILE_CREATE | TR_SYS_FILE_TRUNCATE, 0600);
                 auto const file_size = metainfo->fileSize(i);
